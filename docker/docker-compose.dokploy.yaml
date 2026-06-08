@@ -467,10 +467,8 @@ services:
     depends_on:
       - api
       - web
-    # Note: no `ports:` exposure — Dokploy/Traefik handles ingress.
-    # Only the two labels Traefik strictly needs to discover this container
-    # are set here. The actual Host(...) router + TLS resolver are written
-    # automatically when you add the domain through Dokploy → Domains.
+    ports:
+      - "${NGINX_HOST_PORT:-8080}:80"
     labels:
       - traefik.enable=true
       - traefik.docker.network=dokploy-network

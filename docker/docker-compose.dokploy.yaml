@@ -471,10 +471,8 @@ services:
       - "${NGINX_HOST_PORT:-8080}:80"
     labels:
       - traefik.enable=true
-      - traefik.docker.network=dokploy-network
     networks:
       - default
-      - dokploy-network
 
 networks:
   default:
@@ -482,8 +480,6 @@ networks:
   ssrf_proxy_network:
     driver: bridge
     internal: true
-  dokploy-network:
-    external: true
 
 volumes:
   app_storage:

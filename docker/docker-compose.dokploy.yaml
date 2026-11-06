@@ -519,10 +519,10 @@ services:
     networks:
       - default
 
-  # nginx is the single entrypoint for Traefik. It performs Dify's internal
-  # path-based routing (/console -> api, / -> web, /socket.io -> api_websocket,
-  # /e/ -> plugin_daemon). Traefik in Dokploy terminates TLS and forwards
-  # plain HTTP on port 80 to this service via dokploy-network.
+  # nginx is the single entrypoint. It performs Dify's internal path-based
+  # routing (/console -> api, / -> web, /socket.io -> api_websocket,
+  # /e/ -> plugin_daemon). In domain mode, Traefik terminates TLS and forwards
+  # plain HTTP on port 80 to this service over the isolated network.
   nginx:
     image: nginx:latest
     restart: always
@@ -555,10 +555,13 @@ services:
     depends_on:
       - api
       - web
+    # IP access: http://<server-ip>:NGINX_HOST_PORT.
+    # Domain access: enable Isolated Deployment in Dokploy, then add the
+    # domain for service `nginx`, port 80. Dokploy writes the Traefik labels.
+    # nginx stays off the shared dokploy-network on purpose: it resolves
+    # short names (api, web), which could collide with other apps there.
     ports:
       - "${NGINX_HOST_PORT:-8080}:80"
-    labels:
-      - traefik.enable=true
     networks:
       - default
 

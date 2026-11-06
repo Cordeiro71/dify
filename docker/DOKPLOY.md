@@ -30,12 +30,15 @@ Dokploy file fixes the common pitfalls:
 2. **Named volumes only** — Dokploy re-clones the repository on every
    deploy, so any bind mount under `./volumes/` would be wiped. Switching
    to named volumes also enables Dokploy's Volume Backups feature.
-3. **No published host ports** — port 80/443 are owned by Dokploy's
-   Traefik. Internal nginx listens on port 80 only inside the compose
-   network; Traefik forwards to it via the external `dokploy-network`.
-4. **External `dokploy-network`** — required so Traefik can reach the
-   container at all. The `traefik.docker.network=dokploy-network` label
-   tells Traefik which network to use when there are multiple.
+3. **Ports 80/443 left to Traefik** — they are owned by Dokploy's
+   Traefik. nginx publishes only `NGINX_HOST_PORT` (default `8080`) for
+   access by IP. Domain access goes through Traefik instead.
+4. **Not on the shared `dokploy-network`** — that network is shared by
+   every app on the host. Dify's nginx resolves the short names `api`,
+   `web` and `plugin_daemon`, so another app with a service of the same
+   name would receive Dify's traffic. Domain access uses Dokploy's
+   **Isolated Deployment** instead: Dokploy creates a network for this
+   stack only and attaches Traefik to it.
 5. **Internal nginx kept** — Dify needs path-based routing
    (`/console`, `/api`, `/socket.io`, `/e/`, `/`) onto three different
    backends. Letting Dify's nginx do that and pointing Traefik at the
@@ -51,7 +54,16 @@ Dokploy file fixes the common pitfalls:
 
 ## Step-by-step
 
-### 1. Prepare DNS
+There are two access modes:
+
+* **By IP** — `http://<server-ip>:8080`. No DNS and no HTTPS. Skip steps 1
+  and 4.
+* **By domain** — `https://dify.example.com` through Traefik with
+  Let's Encrypt. Follow every step.
+
+Both modes can run at the same time.
+
+### 1. Prepare DNS (domain mode only)
 
 Point an `A` (or `AAAA`) record from your domain to the Dokploy host.
 Do this **before** adding the domain in Dokploy so Let's Encrypt's
@@ -79,9 +91,13 @@ openssl rand -base64 42
 at least for `DB_PASSWORD`, `REDIS_PASSWORD`, `SANDBOX_API_KEY`,
 `PLUGIN_DAEMON_KEY`, `PLUGIN_DIFY_INNER_API_KEY`, and `WEAVIATE_API_KEY`.
 
-### 4. Attach the domain
+### 4. Attach the domain (domain mode only)
 
-Domains tab → **Add Domain**:
+First turn on isolation: **Advanced** tab → **Isolated Deployment** →
+enable and save. Without it Traefik cannot reach nginx, because nginx is
+not on `dokploy-network`, and the domain answers 404 or Bad Gateway.
+
+Then Domains tab → **Add Domain**:
 
 * Host: `dify.example.com`
 * Service: `nginx`
@@ -91,6 +107,10 @@ Domains tab → **Add Domain**:
 * Path: `/`
 
 Dokploy will write a Traefik router for the `nginx` service.
+
+Switch the public URLs in the Environment tab to the domain: every
+`http://<ip>:8080` becomes `https://dify.example.com`, and
+`NEXT_PUBLIC_SOCKET_URL` becomes `wss://dify.example.com`.
 
 ### 5. Deploy
 
@@ -106,9 +126,11 @@ containers report healthy:
 * **Bad Gateway / 404 for ~30s after deploy** — Traefik needs about
   10 seconds to attach to the new container, then nginx needs to wait
   for `api` and `web` to become healthy. Wait it out.
-* **`dokploy-network not found`** — only happens if you copy this
-  compose to a host without Dokploy. Create the network manually:
-  `docker network create dokploy-network`.
+* **Domain returns 404 or Bad Gateway** — check that Isolated Deployment
+  is on, then redeploy. Domain changes also need a redeploy.
+* **Domain stops working after a Traefik restart** — Traefik can lose its
+  connection to isolated networks when it is recreated. Redeploy the
+  stack to reconnect it.
 * **Certificate not issued** — confirm the DNS record resolves to the
   Dokploy host before adding the domain; redeploy after fixing DNS.
 * **WebSocket disconnects** — make sure `NEXT_PUBLIC_SOCKET_URL` uses
@@ -117,6 +139,11 @@ containers report healthy:
 * **Lost data on redeploy** — verify volumes are listed under the
   service's Volumes tab in Dokploy. If you see bind mounts pointing to
   `./volumes/...`, you are deploying the wrong compose file.
+* **Changing `DB_PASSWORD` after the first deploy** — Postgres applies
+  the password only when the data volume is created. Changing it later
+  makes `api` and `plugin_daemon` fail to log in. Change it inside
+  Postgres first (`ALTER USER postgres PASSWORD '...'`), then in the
+  Environment tab.
 * **Plugins can't reach api** — `PLUGIN_DIFY_INNER_API_URL` must stay
   `http://api:5001` (the internal compose hostname), not the public URL.
 * **Forgot `INIT_PASSWORD`** — bring the stack down, set a new value in

@@ -1,43 +1,21 @@
-import type { ActionItem, AppSearchResult, SearchResult } from './types'
-import type { App } from '@/types/app'
-import { RiFileListLine, RiLayoutLine, RiLineChartLine, RiNodeTree, RiTerminalBoxLine } from '@remixicon/react'
-import * as React from 'react'
-import { fetchAppList } from '@/service/apps'
-import { AppModeEnum } from '@/types/app'
+import type { AppPartial } from '@dify/contracts/api/console/apps/types.gen'
+import type { ActionItem, AppSearchResult, SearchQueryOptions } from './types'
+import { consoleQuery } from '@/service/console'
 import { getRedirectionPath } from '@/utils/app-redirection'
 import { AppTypeIcon } from '../../app/type-selector'
 import AppIcon from '../../base/app-icon'
 
-const WORKFLOW_MODES = new Set([AppModeEnum.WORKFLOW, AppModeEnum.ADVANCED_CHAT])
-
-type AppSection = { id: string, label: string, path: string, icon: React.ElementType }
-
-const getAppSections = (app: App): AppSection[] => {
-  const base = `/app/${app.id}`
-  if (WORKFLOW_MODES.has(app.mode)) {
-    return [
-      { id: 'workflow', label: 'Workflow', path: `${base}/workflow`, icon: RiNodeTree },
-      { id: 'overview', label: 'Overview', path: `${base}/overview`, icon: RiLineChartLine },
-      { id: 'logs', label: 'Logs', path: `${base}/logs`, icon: RiFileListLine },
-    ]
-  }
-  return [
-    { id: 'configuration', label: 'Configuration', path: `${base}/configuration`, icon: RiLayoutLine },
-    { id: 'overview', label: 'Overview', path: `${base}/overview`, icon: RiLineChartLine },
-    { id: 'logs', label: 'Logs', path: `${base}/logs`, icon: RiFileListLine },
-    { id: 'develop', label: 'Develop', path: `${base}/develop`, icon: RiTerminalBoxLine },
-  ]
+function getAppPath(app: AppPartial) {
+  return getRedirectionPath({
+    id: app.id,
+    mode: app.mode,
+    permission_keys: app.permission_keys,
+  })
 }
 
-const appIcon = (app: App) => (
+const appIcon = (app: AppPartial) => (
   <div className="relative shrink-0">
-    <AppIcon
-      size="large"
-      iconType={app.icon_type}
-      icon={app.icon}
-      background={app.icon_background}
-      imageUrl={app.icon_url}
-    />
+    <AppIcon size="large" icon={app} />
     <AppTypeIcon
       wrapperClassName="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-sm border border-divider-regular outline-solid outline-components-panel-on-panel-item-bg"
       className="size-3"
@@ -46,51 +24,16 @@ const appIcon = (app: App) => (
   </div>
 )
 
-const parser = (apps: App[]): AppSearchResult[] => {
-  return apps.map(app => ({
+function getAppResults(apps: AppPartial[]): AppSearchResult[] {
+  return apps.map((app) => ({
     id: app.id,
     title: app.name,
-    description: app.description,
+    description: app.description ?? undefined,
     type: 'app' as const,
-    path: getRedirectionPath(true, {
-      id: app.id,
-      mode: app.mode,
-    }),
+    path: getAppPath(app),
     icon: appIcon(app),
     data: app,
   }))
-}
-
-// Generate sub-section results for matched apps when in scoped @app search
-const parserWithSections = (apps: App[]): SearchResult[] => {
-  const results: SearchResult[] = []
-  for (const app of apps) {
-    results.push({
-      id: app.id,
-      title: app.name,
-      description: app.description,
-      type: 'app' as const,
-      path: getRedirectionPath(true, { id: app.id, mode: app.mode }),
-      icon: appIcon(app),
-      data: app,
-    })
-    for (const section of getAppSections(app)) {
-      results.push({
-        id: `${app.id}:${section.id}`,
-        title: `${app.name} / ${section.label}`,
-        description: section.path,
-        type: 'app' as const,
-        path: section.path,
-        icon: (
-          <div className="flex h-6 w-6 items-center justify-center rounded-md border-[0.5px] border-divider-regular bg-components-panel-bg">
-            <section.icon className="size-4 text-text-tertiary" />
-          </div>
-        ),
-        data: app,
-      })
-    }
-  }
-  return results
 }
 
 export const appAction: ActionItem = {
@@ -98,22 +41,19 @@ export const appAction: ActionItem = {
   shortcut: '@app',
   title: 'Search Applications',
   description: 'Search and navigate to your applications',
-  search: async (query, searchTerm = '', _locale) => {
-    const isScoped = query.trimStart().startsWith('@app') || query.trimStart().startsWith('@App')
-    try {
-      const response = await fetchAppList({
-        url: 'apps',
-        params: {
-          page: 1,
-          name: searchTerm,
-        },
-      })
-      const apps = response?.data || []
-      return isScoped ? parserWithSections(apps) : parser(apps)
-    }
-    catch (error) {
-      console.warn('App search failed:', error)
-      return []
-    }
-  },
+  source: 'remote',
+}
+
+export function appSearchQueryOptions(searchTerm: string, options: SearchQueryOptions = {}) {
+  return consoleQuery.apps.get.queryOptions({
+    input: {
+      query: {
+        page: 1,
+        name: searchTerm,
+      },
+    },
+    retry: false,
+    ...options,
+    select: (response) => getAppResults(response.data),
+  })
 }

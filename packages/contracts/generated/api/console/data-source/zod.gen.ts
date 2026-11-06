@@ -3,11 +3,39 @@
 import * as z from 'zod'
 
 /**
+ * ErrorResponse
+ *
+ * Documented non-2xx body emitted by ``register_external_error_handlers``.
+ *
+ * ``params`` and ``details`` appear only on the errors that set them. The schema
+ * stays open because ``HTTPException.data`` may carry extra keys.
+ */
+export const zErrorResponse = z.object({
+  code: z.string(),
+  details: z.record(z.string(), z.unknown()).optional(),
+  message: z.string(),
+  params: z.string().optional(),
+  status: z.int(),
+})
+
+/**
  * SimpleResultResponse
  */
 export const zSimpleResultResponse = z.object({
   result: z.string(),
 })
+
+/**
+ * InvalidActionError
+ *
+ * Invalid action.
+ */
+export const zInvalidActionError = zErrorResponse.and(
+  z.object({
+    code: z.literal('invalid_action'),
+    status: z.literal(400),
+  }),
+)
 
 /**
  * DataSourceIntegrateIconResponse
@@ -19,14 +47,19 @@ export const zDataSourceIntegrateIconResponse = z.object({
 })
 
 /**
+ * NotionPageType
+ */
+export const zNotionPageType = z.enum(['database', 'page'])
+
+/**
  * DataSourceIntegratePageResponse
  */
 export const zDataSourceIntegratePageResponse = z.object({
-  page_icon: zDataSourceIntegrateIconResponse,
+  page_icon: zDataSourceIntegrateIconResponse.nullable(),
   page_id: z.string(),
   page_name: z.string(),
   parent_id: z.string(),
-  type: z.string(),
+  type: zNotionPageType,
 })
 
 /**
@@ -50,7 +83,7 @@ export const zDataSourceIntegrateResponse = z.object({
   is_bound: z.boolean(),
   link: z.string(),
   provider: z.string(),
-  source_info: zDataSourceIntegrateWorkspaceResponse,
+  source_info: zDataSourceIntegrateWorkspaceResponse.nullable(),
 })
 
 /**
@@ -65,24 +98,9 @@ export const zDataSourceIntegrateListResponse = z.object({
  */
 export const zGetDataSourceIntegratesResponse = zDataSourceIntegrateListResponse
 
-/**
- * Success
- */
-export const zPatchDataSourceIntegratesResponse = zSimpleResultResponse
-
-export const zGetDataSourceIntegratesByBindingIdByActionPath = z.object({
-  action: z.string(),
-  binding_id: z.string(),
-})
-
-/**
- * Success
- */
-export const zGetDataSourceIntegratesByBindingIdByActionResponse = zDataSourceIntegrateListResponse
-
 export const zPatchDataSourceIntegratesByBindingIdByActionPath = z.object({
   action: z.string(),
-  binding_id: z.string(),
+  binding_id: z.uuid(),
 })
 
 /**

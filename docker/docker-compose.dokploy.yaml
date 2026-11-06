@@ -88,9 +88,19 @@ x-shared-api-worker-env: &shared-api-worker-env
   REDIS_PASSWORD: ${REDIS_PASSWORD:-difyai123456}
   REDIS_USE_SSL: ${REDIS_USE_SSL:-false}
   REDIS_DB: ${REDIS_DB:-0}
-  CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://:difyai123456@redis:6379/1}
+  CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://:${REDIS_PASSWORD:-difyai123456}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}/1}
   CELERY_BACKEND: ${CELERY_BACKEND:-redis}
   BROKER_USE_SSL: ${BROKER_USE_SSL:-false}
+  REDIS_KEEPALIVE: ${REDIS_KEEPALIVE:-true}
+
+  # Reverse proxy: nginx forwards Host/X-Forwarded-* so the API sees the
+  # external host and port (upstream compose enables this by default).
+  RESPECT_XFORWARD_HEADERS_ENABLED: ${RESPECT_XFORWARD_HEADERS_ENABLED:-true}
+
+  # Agent v2 backend (added in Dify 1.19)
+  AGENT_BACKEND_BASE_URL: ${AGENT_BACKEND_BASE_URL:-http://agent_backend:5050}
+  AGENT_BACKEND_API_TOKEN: ${DIFY_AGENT_API_TOKEN:-dify-agent-run-token-for-dev-only}
+  DIFY_AGENT_API_TOKEN: ${DIFY_AGENT_API_TOKEN:-dify-agent-run-token-for-dev-only}
 
   # Vector store (Weaviate by default)
   VECTOR_STORE: ${VECTOR_STORE:-weaviate}
@@ -171,7 +181,7 @@ services:
     restart: "no"
 
   api:
-    image: langgenius/dify-api:1.14.2
+    image: langgenius/dify-api:1.19.0
     restart: always
     environment:
       <<: *shared-api-worker-env
@@ -186,6 +196,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      agent_backend:
+        condition: service_started
     volumes:
       - app_storage:/app/api/storage
     healthcheck:
@@ -199,7 +211,7 @@ services:
       - default
 
   api_websocket:
-    image: langgenius/dify-api:1.14.2
+    image: langgenius/dify-api:1.19.0
     restart: always
     environment:
       <<: *shared-api-worker-env
@@ -218,7 +230,7 @@ services:
       - default
 
   worker:
-    image: langgenius/dify-api:1.14.2
+    image: langgenius/dify-api:1.19.0
     restart: always
     environment:
       <<: *shared-api-worker-env
@@ -233,6 +245,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      agent_backend:
+        condition: service_started
     volumes:
       - app_storage:/app/api/storage
     networks:
@@ -240,7 +254,7 @@ services:
       - default
 
   worker_beat:
-    image: langgenius/dify-api:1.14.2
+    image: langgenius/dify-api:1.19.0
     restart: always
     environment:
       <<: *shared-api-worker-env
@@ -257,7 +271,7 @@ services:
       - default
 
   web:
-    image: langgenius/dify-web:1.14.2
+    image: langgenius/dify-web:1.19.0
     restart: always
     environment:
       CONSOLE_API_URL: ${CONSOLE_API_URL:-}
@@ -279,6 +293,7 @@ services:
       MAX_PARALLEL_LIMIT: ${MAX_PARALLEL_LIMIT:-10}
       MAX_ITERATIONS_NUM: ${MAX_ITERATIONS_NUM:-99}
       MAX_TREE_DEPTH: ${MAX_TREE_DEPTH:-50}
+      NEXT_PUBLIC_ENABLE_AGENT_V2: ${NEXT_PUBLIC_ENABLE_AGENT_V2:-true}
     networks:
       - default
 
@@ -357,23 +372,96 @@ services:
     restart: always
     volumes:
       - ./ssrf_proxy/squid.conf.template:/etc/squid/squid.conf.template
+      - ./ssrf_proxy/squid-common.conf.template:/etc/squid/dify_common.conf.template
       - ./ssrf_proxy/docker-entrypoint.sh:/docker-entrypoint-mount.sh
     entrypoint:
       - sh
       - -c
       - "cp /docker-entrypoint-mount.sh /docker-entrypoint.sh && sed -i 's/\r$$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh && /docker-entrypoint.sh"
-    environment:
+    environment: &ssrf-proxy-env
       HTTP_PORT: ${SSRF_HTTP_PORT:-3128}
       COREDUMP_DIR: ${SSRF_COREDUMP_DIR:-/var/spool/squid}
       REVERSE_PROXY_PORT: ${SSRF_REVERSE_PROXY_PORT:-8194}
       SANDBOX_HOST: ${SSRF_SANDBOX_HOST:-sandbox}
       SANDBOX_PORT: ${SANDBOX_PORT:-8194}
+      # Comma-separated private CIDRs/domains that HTTP nodes, tools and
+      # plugins may reach. Empty keeps the deny-by-default policy.
+      SSRF_PROXY_ALLOW_PRIVATE_IPS: ${SSRF_PROXY_ALLOW_PRIVATE_IPS:-}
+      SSRF_PROXY_ALLOW_PRIVATE_DOMAINS: ${SSRF_PROXY_ALLOW_PRIVATE_DOMAINS:-}
     networks:
       - ssrf_proxy_network
       - default
 
+  # Agent v2 runtime (Dify 1.19+). Same topology as the upstream compose:
+  # local_sandbox has no route to `api`; its egress goes through
+  # agent_ssrf_proxy, and agent_backend drives it over agent_sandbox_network.
+  agent_backend:
+    image: langgenius/dify-agent-backend:1.19.0
+    restart: always
+    environment:
+      DIFY_AGENT_API_TOKEN: ${DIFY_AGENT_API_TOKEN:-dify-agent-run-token-for-dev-only}
+      DIFY_AGENT_REDIS_URL: ${DIFY_AGENT_REDIS_URL:-redis://:${REDIS_PASSWORD:-difyai123456}@redis:6379/2}
+      DIFY_AGENT_PLUGIN_DAEMON_URL: ${PLUGIN_DAEMON_URL:-http://plugin_daemon:5002}
+      DIFY_AGENT_PLUGIN_DAEMON_API_KEY: ${PLUGIN_DAEMON_KEY:-lYkiYYT6owG+71oLerGzA7GXCgOT++6ovaezWAjpCjf+Sjc3ZtU+qUEi}
+      DIFY_AGENT_INNER_API_URL: ${PLUGIN_DIFY_INNER_API_URL:-http://api:5001}
+      DIFY_AGENT_INNER_API_KEY: ${PLUGIN_DIFY_INNER_API_KEY:-QaHbTe77CtuXmsfyhR7+vRjI/+XbV1AaFy691iy+kGDv2Jvy0/eAh8Y1}
+      DIFY_AGENT_RUNTIME_BACKEND: ${DIFY_AGENT_RUNTIME_BACKEND:-local}
+      DIFY_AGENT_LOCAL_SANDBOX_ENDPOINT: ${DIFY_AGENT_LOCAL_SANDBOX_ENDPOINT:-http://local_sandbox:5004}
+      DIFY_AGENT_LOCAL_SANDBOX_AUTH_TOKEN: ${DIFY_AGENT_LOCAL_SANDBOX_AUTH_TOKEN:-dify-agent-local-sandbox-token-change-me}
+      DIFY_AGENT_E2B_API_KEY: ${DIFY_AGENT_E2B_API_KEY:-}
+      DIFY_AGENT_E2B_TEMPLATE: ${DIFY_AGENT_E2B_TEMPLATE:-difys-default-team/dify-agent-local-sandbox}
+      DIFY_AGENT_SANDBOX_FILES_BASE_URL: ${DIFY_AGENT_SANDBOX_FILES_BASE_URL:-http://api:5001}
+      DIFY_AGENT_STUB_API_BASE_URL: ${DIFY_AGENT_STUB_API_BASE_URL:-http://agent_backend:5050/agent-stub}
+      DIFY_AGENT_SERVER_SECRET_KEY: ${DIFY_AGENT_SERVER_SECRET_KEY:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY}
+    depends_on:
+      redis:
+        condition: service_started
+      plugin_daemon:
+        condition: service_started
+    networks:
+      - default
+      - agent_sandbox_network
+
+  local_sandbox:
+    image: langgenius/dify-agent-local-sandbox:1.19.0
+    command: ["shellctl", "serve", "--listen", "0.0.0.0:5004", "--require-auth-token"]
+    restart: always
+    environment:
+      SHELLCTL_AUTH_TOKEN: ${DIFY_AGENT_LOCAL_SANDBOX_AUTH_TOKEN:-dify-agent-local-sandbox-token-change-me}
+      HTTP_PROXY: http://agent_ssrf_proxy:3128
+      HTTPS_PROXY: http://agent_ssrf_proxy:3128
+      NO_PROXY: localhost,127.0.0.1
+    volumes:
+      - agent_local_sandbox_home:/home/dify
+      - agent_local_sandbox_workspace:/workspace
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5004/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - agent_sandbox_network
+      - local_sandbox_proxy_network
+
+  agent_ssrf_proxy:
+    image: ubuntu/squid:latest
+    restart: always
+    volumes:
+      - ./ssrf_proxy/squid-agent.conf.template:/etc/squid/squid.conf.template
+      - ./ssrf_proxy/squid-common.conf.template:/etc/squid/dify_common.conf.template
+      - ./ssrf_proxy/docker-agent-entrypoint.sh:/docker-entrypoint-mount.sh
+    entrypoint:
+      - sh
+      - -c
+      - "cp /docker-entrypoint-mount.sh /docker-entrypoint.sh && sed -i 's/\r$$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh && /docker-entrypoint.sh"
+    environment: *ssrf-proxy-env
+    networks:
+      - default
+      - local_sandbox_proxy_network
+
   plugin_daemon:
-    image: langgenius/dify-plugin-daemon:0.6.1-local
+    image: langgenius/dify-plugin-daemon:0.6.14-local
     restart: always
     environment:
       DB_HOST: ${DB_HOST:-db_postgres}
@@ -412,7 +500,7 @@ services:
       - default
 
   weaviate:
-    image: semitechnologies/weaviate:1.27.0
+    image: cr.weaviate.io/semitechnologies/weaviate:1.39.13
     restart: always
     volumes:
       - weaviate_data:/var/lib/weaviate
@@ -431,10 +519,10 @@ services:
     networks:
       - default
 
-  # nginx is the single entrypoint for Traefik. It performs Dify's internal
-  # path-based routing (/console -> api, / -> web, /socket.io -> api_websocket,
-  # /e/ -> plugin_daemon). Traefik in Dokploy terminates TLS and forwards
-  # plain HTTP on port 80 to this service via dokploy-network.
+  # nginx is the single entrypoint. It performs Dify's internal path-based
+  # routing (/console -> api, / -> web, /socket.io -> api_websocket,
+  # /e/ -> plugin_daemon). In domain mode, Traefik terminates TLS and forwards
+  # plain HTTP on port 80 to this service over the isolated network.
   nginx:
     image: nginx:latest
     restart: always
@@ -467,10 +555,13 @@ services:
     depends_on:
       - api
       - web
+    # IP access: http://<server-ip>:NGINX_HOST_PORT.
+    # Domain access: enable Isolated Deployment in Dokploy, then add the
+    # domain for service `nginx`, port 80. Dokploy writes the Traefik labels.
+    # nginx stays off the shared dokploy-network on purpose: it resolves
+    # short names (api, web), which could collide with other apps there.
     ports:
       - "${NGINX_HOST_PORT:-8080}:80"
-    labels:
-      - traefik.enable=true
     networks:
       - default
 
@@ -480,8 +571,18 @@ networks:
   ssrf_proxy_network:
     driver: bridge
     internal: true
+  # Shared only by agent_ssrf_proxy and local_sandbox.
+  local_sandbox_proxy_network:
+    driver: bridge
+    internal: true
+  # shellctl control channel (agent_backend -> local_sandbox:5004).
+  agent_sandbox_network:
+    driver: bridge
+    internal: true
 
 volumes:
+  agent_local_sandbox_home:
+  agent_local_sandbox_workspace:
   app_storage:
   db_postgres_data:
   redis_data:

@@ -2,8 +2,20 @@
 
 import { oc } from '@orpc/contract'
 import * as z from 'zod'
-
 import {
+  zAgentNameConflictError,
+  zAgentNotFoundError,
+  zAgentSoulLockedError,
+  zAgentVersionConflictError,
+  zAgentVersionNotFoundError,
+  zDraftWorkflowNotExistError,
+  zDraftWorkflowNotSyncError,
+  zInvalidComposerConfigError,
+  zPlaintextSecretNotAllowedError,
+} from './zod.gen.ts'
+import {
+  zDeleteSnippetsBySnippetIdWorkflowsByWorkflowIdPath,
+  zDeleteSnippetsBySnippetIdWorkflowsByWorkflowIdResponse,
   zDeleteSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdVariablesPath,
   zDeleteSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdVariablesResponse,
   zDeleteSnippetsBySnippetIdWorkflowsDraftVariablesByVariableIdPath,
@@ -15,6 +27,7 @@ import {
   zGetSnippetsBySnippetIdWorkflowRunsByRunIdPath,
   zGetSnippetsBySnippetIdWorkflowRunsByRunIdResponse,
   zGetSnippetsBySnippetIdWorkflowRunsPath,
+  zGetSnippetsBySnippetIdWorkflowRunsQuery,
   zGetSnippetsBySnippetIdWorkflowRunsResponse,
   zGetSnippetsBySnippetIdWorkflowsDefaultWorkflowBlockConfigsPath,
   zGetSnippetsBySnippetIdWorkflowsDefaultWorkflowBlockConfigsResponse,
@@ -24,6 +37,11 @@ import {
   zGetSnippetsBySnippetIdWorkflowsDraftConversationVariablesResponse,
   zGetSnippetsBySnippetIdWorkflowsDraftEnvironmentVariablesPath,
   zGetSnippetsBySnippetIdWorkflowsDraftEnvironmentVariablesResponse,
+  zGetSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerCandidatesPath,
+  zGetSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerCandidatesResponse,
+  zGetSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerPath,
+  zGetSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerQuery,
+  zGetSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerResponse,
   zGetSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdLastRunPath,
   zGetSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdLastRunResponse,
   zGetSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdVariablesPath,
@@ -42,6 +60,9 @@ import {
   zGetSnippetsBySnippetIdWorkflowsPublishResponse,
   zGetSnippetsBySnippetIdWorkflowsQuery,
   zGetSnippetsBySnippetIdWorkflowsResponse,
+  zPatchSnippetsBySnippetIdWorkflowsByWorkflowIdBody,
+  zPatchSnippetsBySnippetIdWorkflowsByWorkflowIdPath,
+  zPatchSnippetsBySnippetIdWorkflowsByWorkflowIdResponse,
   zPatchSnippetsBySnippetIdWorkflowsDraftVariablesByVariableIdBody,
   zPatchSnippetsBySnippetIdWorkflowsDraftVariablesByVariableIdPath,
   zPatchSnippetsBySnippetIdWorkflowsDraftVariablesByVariableIdResponse,
@@ -56,6 +77,18 @@ import {
   zPostSnippetsBySnippetIdWorkflowsDraftLoopNodesByNodeIdRunBody,
   zPostSnippetsBySnippetIdWorkflowsDraftLoopNodesByNodeIdRunPath,
   zPostSnippetsBySnippetIdWorkflowsDraftLoopNodesByNodeIdRunResponse,
+  zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerCopyFromRosterBody,
+  zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerCopyFromRosterPath,
+  zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerCopyFromRosterResponse,
+  zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerImpactBody,
+  zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerImpactPath,
+  zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerImpactResponse,
+  zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerSaveToRosterBody,
+  zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerSaveToRosterPath,
+  zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerSaveToRosterResponse,
+  zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerValidateBody,
+  zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerValidatePath,
+  zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerValidateResponse,
   zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdRunBody,
   zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdRunPath,
   zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdRunResponse,
@@ -67,30 +100,23 @@ import {
   zPostSnippetsBySnippetIdWorkflowsPublishBody,
   zPostSnippetsBySnippetIdWorkflowsPublishPath,
   zPostSnippetsBySnippetIdWorkflowsPublishResponse,
+  zPutSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerBody,
+  zPutSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerPath,
+  zPutSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerResponse,
   zPutSnippetsBySnippetIdWorkflowsDraftVariablesByVariableIdResetPath,
   zPutSnippetsBySnippetIdWorkflowsDraftVariablesByVariableIdResetResponse,
-} from './zod.gen'
+} from './zod.gen.ts'
 
 /**
- * Stop a running snippet workflow task
- *
- * Uses both the legacy stop flag mechanism and the graph engine
- * command channel for backward compatibility.
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
+ * Stop a running or paused task belonging to this snippet
  */
 export const post = oc
   .route({
-    deprecated: true,
-    description:
-      'Uses both the legacy stop flag mechanism and the graph engine\ncommand channel for backward compatibility.\n\nGenerated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
     inputStructure: 'detailed',
     method: 'POST',
     operationId: 'postSnippetsBySnippetIdWorkflowRunsTasksByTaskIdStop',
     path: '/snippets/{snippet_id}/workflow-runs/tasks/{task_id}/stop',
-    summary: 'Stop a running snippet workflow task',
+    summary: 'Stop a running or paused task belonging to this snippet',
     tags: ['console'],
   })
   .input(z.object({ params: zPostSnippetsBySnippetIdWorkflowRunsTasksByTaskIdStopPath }))
@@ -159,7 +185,12 @@ export const get3 = oc
     summary: 'List workflow runs for snippet',
     tags: ['console'],
   })
-  .input(z.object({ params: zGetSnippetsBySnippetIdWorkflowRunsPath }))
+  .input(
+    z.object({
+      params: zGetSnippetsBySnippetIdWorkflowRunsPath,
+      query: zGetSnippetsBySnippetIdWorkflowRunsQuery.optional(),
+    }),
+  )
   .output(zGetSnippetsBySnippetIdWorkflowRunsResponse)
 
 export const workflowRuns = {
@@ -170,16 +201,9 @@ export const workflowRuns = {
 
 /**
  * Get default block configurations for snippet workflow
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
 export const get4 = oc
   .route({
-    deprecated: true,
-    description:
-      'Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
     inputStructure: 'detailed',
     method: 'GET',
     operationId: 'getSnippetsBySnippetIdWorkflowsDefaultWorkflowBlockConfigs',
@@ -196,16 +220,9 @@ export const defaultWorkflowBlockConfigs = {
 
 /**
  * Get snippet draft workflow configuration limits
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
 export const get5 = oc
   .route({
-    deprecated: true,
-    description:
-      'Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
     inputStructure: 'detailed',
     method: 'GET',
     operationId: 'getSnippetsBySnippetIdWorkflowsDraftConfig',
@@ -222,16 +239,11 @@ export const config = {
 
 /**
  * Conversation variables are not used in snippet workflows; returns an empty list for API parity
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
 export const get6 = oc
   .route({
-    deprecated: true,
     description:
-      'Conversation variables are not used in snippet workflows; returns an empty list for API parity\n\nGenerated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
+      'Conversation variables are not used in snippet workflows; returns an empty list for API parity',
     inputStructure: 'detailed',
     method: 'GET',
     operationId: 'getSnippetsBySnippetIdWorkflowsDraftConversationVariables',
@@ -247,16 +259,10 @@ export const conversationVariables = {
 
 /**
  * Get environment variables from snippet draft workflow graph
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
 export const get7 = oc
   .route({
-    deprecated: true,
-    description:
-      'Get environment variables from snippet draft workflow graph\n\nGenerated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
+    description: 'Get environment variables from snippet draft workflow graph',
     inputStructure: 'detailed',
     method: 'GET',
     operationId: 'getSnippetsBySnippetIdWorkflowsDraftEnvironmentVariables',
@@ -265,6 +271,7 @@ export const get7 = oc
   })
   .input(z.object({ params: zGetSnippetsBySnippetIdWorkflowsDraftEnvironmentVariablesPath }))
   .output(zGetSnippetsBySnippetIdWorkflowsDraftEnvironmentVariablesResponse)
+  .errors({ draft_workflow_not_exist: { status: 404, data: zDraftWorkflowNotExistError } })
 
 export const environmentVariables = {
   get: get7,
@@ -276,16 +283,11 @@ export const environmentVariables = {
  * Run draft workflow iteration node for snippet
  * Iteration nodes execute their internal sub-graph multiple times over an input list.
  * Returns an SSE event stream with iteration progress and results.
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
 export const post2 = oc
   .route({
-    deprecated: true,
     description:
-      'Run draft workflow iteration node for snippet\nIteration nodes execute their internal sub-graph multiple times over an input list.\nReturns an SSE event stream with iteration progress and results.\n\nGenerated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
+      'Run draft workflow iteration node for snippet\nIteration nodes execute their internal sub-graph multiple times over an input list.\nReturns an SSE event stream with iteration progress and results.',
     inputStructure: 'detailed',
     method: 'POST',
     operationId: 'postSnippetsBySnippetIdWorkflowsDraftIterationNodesByNodeIdRun',
@@ -323,16 +325,11 @@ export const iteration = {
  * Run draft workflow loop node for snippet
  * Loop nodes execute their internal sub-graph repeatedly until a condition is met.
  * Returns an SSE event stream with loop progress and results.
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
 export const post3 = oc
   .route({
-    deprecated: true,
     description:
-      'Run draft workflow loop node for snippet\nLoop nodes execute their internal sub-graph repeatedly until a condition is met.\nReturns an SSE event stream with loop progress and results.\n\nGenerated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
+      'Run draft workflow loop node for snippet\nLoop nodes execute their internal sub-graph repeatedly until a condition is met.\nReturns an SSE event stream with loop progress and results.',
     inputStructure: 'detailed',
     method: 'POST',
     operationId: 'postSnippetsBySnippetIdWorkflowsDraftLoopNodesByNodeIdRun',
@@ -364,6 +361,178 @@ export const loop = {
   nodes: nodes2,
 }
 
+export const get8 = oc
+  .route({
+    inputStructure: 'detailed',
+    method: 'GET',
+    operationId: 'getSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerCandidates',
+    path: '/snippets/{snippet_id}/workflows/draft/nodes/{node_id}/agent-composer/candidates',
+    tags: ['console'],
+  })
+  .input(
+    z.object({
+      params: zGetSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerCandidatesPath,
+    }),
+  )
+  .output(zGetSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerCandidatesResponse)
+
+export const candidates = {
+  get: get8,
+}
+
+export const post4 = oc
+  .route({
+    inputStructure: 'detailed',
+    method: 'POST',
+    operationId: 'postSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerCopyFromRoster',
+    path: '/snippets/{snippet_id}/workflows/draft/nodes/{node_id}/agent-composer/copy-from-roster',
+    tags: ['console'],
+  })
+  .input(
+    z.object({
+      body: zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerCopyFromRosterBody,
+      params: zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerCopyFromRosterPath,
+    }),
+  )
+  .output(zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerCopyFromRosterResponse)
+  .errors({
+    agent_not_found_error: { status: 404, data: zAgentNotFoundError },
+    agent_version_conflict_error: { status: 409, data: zAgentVersionConflictError },
+    agent_version_not_found_error: { status: 404, data: zAgentVersionNotFoundError },
+    invalid_composer_config_error: { status: 400, data: zInvalidComposerConfigError },
+  })
+
+export const copyFromRoster = {
+  post: post4,
+}
+
+export const post5 = oc
+  .route({
+    inputStructure: 'detailed',
+    method: 'POST',
+    operationId: 'postSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerImpact',
+    path: '/snippets/{snippet_id}/workflows/draft/nodes/{node_id}/agent-composer/impact',
+    tags: ['console'],
+  })
+  .input(
+    z.object({
+      body: zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerImpactBody,
+      params: zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerImpactPath,
+    }),
+  )
+  .output(zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerImpactResponse)
+
+export const impact = {
+  post: post5,
+}
+
+export const post6 = oc
+  .route({
+    inputStructure: 'detailed',
+    method: 'POST',
+    operationId: 'postSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerSaveToRoster',
+    path: '/snippets/{snippet_id}/workflows/draft/nodes/{node_id}/agent-composer/save-to-roster',
+    tags: ['console'],
+  })
+  .input(
+    z.object({
+      body: zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerSaveToRosterBody,
+      params: zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerSaveToRosterPath,
+    }),
+  )
+  .output(zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerSaveToRosterResponse)
+  .errors({
+    agent_name_conflict_error: { status: 409, data: zAgentNameConflictError },
+    agent_not_found_error: { status: 404, data: zAgentNotFoundError },
+    agent_soul_locked_error: { status: 400, data: zAgentSoulLockedError },
+    agent_version_not_found_error: { status: 404, data: zAgentVersionNotFoundError },
+    invalid_composer_config_error: { status: 400, data: zInvalidComposerConfigError },
+    plaintext_secret_not_allowed_error: { status: 400, data: zPlaintextSecretNotAllowedError },
+  })
+
+export const saveToRoster = {
+  post: post6,
+}
+
+export const post7 = oc
+  .route({
+    inputStructure: 'detailed',
+    method: 'POST',
+    operationId: 'postSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerValidate',
+    path: '/snippets/{snippet_id}/workflows/draft/nodes/{node_id}/agent-composer/validate',
+    tags: ['console'],
+  })
+  .input(
+    z.object({
+      body: zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerValidateBody,
+      params: zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerValidatePath,
+    }),
+  )
+  .output(zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerValidateResponse)
+  .errors({
+    agent_soul_locked_error: { status: 400, data: zAgentSoulLockedError },
+    invalid_composer_config_error: { status: 400, data: zInvalidComposerConfigError },
+    plaintext_secret_not_allowed_error: { status: 400, data: zPlaintextSecretNotAllowedError },
+  })
+
+export const validate = {
+  post: post7,
+}
+
+export const get9 = oc
+  .route({
+    inputStructure: 'detailed',
+    method: 'GET',
+    operationId: 'getSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposer',
+    path: '/snippets/{snippet_id}/workflows/draft/nodes/{node_id}/agent-composer',
+    tags: ['console'],
+  })
+  .input(
+    z.object({
+      params: zGetSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerPath,
+      query: zGetSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerQuery.optional(),
+    }),
+  )
+  .output(zGetSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerResponse)
+  .errors({
+    agent_not_found_error: { status: 404, data: zAgentNotFoundError },
+    agent_version_not_found_error: { status: 404, data: zAgentVersionNotFoundError },
+  })
+
+export const put = oc
+  .route({
+    inputStructure: 'detailed',
+    method: 'PUT',
+    operationId: 'putSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposer',
+    path: '/snippets/{snippet_id}/workflows/draft/nodes/{node_id}/agent-composer',
+    tags: ['console'],
+  })
+  .input(
+    z.object({
+      body: zPutSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerBody,
+      params: zPutSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerPath,
+    }),
+  )
+  .output(zPutSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdAgentComposerResponse)
+  .errors({
+    agent_name_conflict_error: { status: 409, data: zAgentNameConflictError },
+    agent_not_found_error: { status: 404, data: zAgentNotFoundError },
+    agent_soul_locked_error: { status: 400, data: zAgentSoulLockedError },
+    agent_version_not_found_error: { status: 404, data: zAgentVersionNotFoundError },
+    invalid_composer_config_error: { status: 400, data: zInvalidComposerConfigError },
+    plaintext_secret_not_allowed_error: { status: 400, data: zPlaintextSecretNotAllowedError },
+  })
+
+export const agentComposer = {
+  get: get9,
+  put,
+  candidates,
+  copyFromRoster,
+  impact,
+  saveToRoster,
+  validate,
+}
+
 /**
  * Get the last run result for a specific node in snippet draft workflow
  *
@@ -371,7 +540,7 @@ export const loop = {
  * Returns the most recent execution record for the given node,
  * including status, inputs, outputs, and timing information.
  */
-export const get8 = oc
+export const get10 = oc
   .route({
     description:
       'Get last run result for a node in snippet draft workflow\nReturns the most recent execution record for the given node,\nincluding status, inputs, outputs, and timing information.',
@@ -386,7 +555,7 @@ export const get8 = oc
   .output(zGetSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdLastRunResponse)
 
 export const lastRun = {
-  get: get8,
+  get: get10,
 }
 
 /**
@@ -395,16 +564,11 @@ export const lastRun = {
  * Run a single node in snippet draft workflow (single-step debugging)
  * Executes a specific node with provided inputs for single-step debugging.
  * Returns the node execution result including status, outputs, and timing.
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
-export const post4 = oc
+export const post8 = oc
   .route({
-    deprecated: true,
     description:
-      'Run a single node in snippet draft workflow (single-step debugging)\nExecutes a specific node with provided inputs for single-step debugging.\nReturns the node execution result including status, outputs, and timing.\n\nGenerated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
+      'Run a single node in snippet draft workflow (single-step debugging)\nExecutes a specific node with provided inputs for single-step debugging.\nReturns the node execution result including status, outputs, and timing.',
     inputStructure: 'detailed',
     method: 'POST',
     operationId: 'postSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdRun',
@@ -421,7 +585,7 @@ export const post4 = oc
   .output(zPostSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdRunResponse)
 
 export const run3 = {
-  post: post4,
+  post: post8,
 }
 
 /**
@@ -442,16 +606,10 @@ export const delete_ = oc
 
 /**
  * Get variables for a specific node (snippet draft workflow)
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
-export const get9 = oc
+export const get11 = oc
   .route({
-    deprecated: true,
-    description:
-      'Get variables for a specific node (snippet draft workflow)\n\nGenerated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
+    description: 'Get variables for a specific node (snippet draft workflow)',
     inputStructure: 'detailed',
     method: 'GET',
     operationId: 'getSnippetsBySnippetIdWorkflowsDraftNodesByNodeIdVariables',
@@ -463,10 +621,11 @@ export const get9 = oc
 
 export const variables = {
   delete: delete_,
-  get: get9,
+  get: get11,
 }
 
 export const byNodeId3 = {
+  agentComposer,
   lastRun,
   run: run3,
   variables,
@@ -481,16 +640,11 @@ export const nodes3 = {
  *
  * Executes the snippet's draft workflow with the provided inputs
  * and returns an SSE event stream with execution progress and results.
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
-export const post5 = oc
+export const post9 = oc
   .route({
-    deprecated: true,
     description:
-      'Executes the snippet\'s draft workflow with the provided inputs\nand returns an SSE event stream with execution progress and results.\n\nGenerated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
+      "Executes the snippet's draft workflow with the provided inputs\nand returns an SSE event stream with execution progress and results.",
     inputStructure: 'detailed',
     method: 'POST',
     operationId: 'postSnippetsBySnippetIdWorkflowsDraftRun',
@@ -507,21 +661,16 @@ export const post5 = oc
   .output(zPostSnippetsBySnippetIdWorkflowsDraftRunResponse)
 
 export const run4 = {
-  post: post5,
+  post: post9,
 }
 
 /**
  * System variables are not used in snippet workflows; returns an empty list for API parity
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
-export const get10 = oc
+export const get12 = oc
   .route({
-    deprecated: true,
     description:
-      'System variables are not used in snippet workflows; returns an empty list for API parity\n\nGenerated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
+      'System variables are not used in snippet workflows; returns an empty list for API parity',
     inputStructure: 'detailed',
     method: 'GET',
     operationId: 'getSnippetsBySnippetIdWorkflowsDraftSystemVariables',
@@ -532,21 +681,15 @@ export const get10 = oc
   .output(zGetSnippetsBySnippetIdWorkflowsDraftSystemVariablesResponse)
 
 export const systemVariables = {
-  get: get10,
+  get: get12,
 }
 
 /**
  * Reset a draft workflow variable to its default value (snippet scope)
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
-export const put = oc
+export const put2 = oc
   .route({
-    deprecated: true,
-    description:
-      'Reset a draft workflow variable to its default value (snippet scope)\n\nGenerated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
+    description: 'Reset a draft workflow variable to its default value (snippet scope)',
     inputStructure: 'detailed',
     method: 'PUT',
     operationId: 'putSnippetsBySnippetIdWorkflowsDraftVariablesByVariableIdReset',
@@ -557,7 +700,7 @@ export const put = oc
   .output(zPutSnippetsBySnippetIdWorkflowsDraftVariablesByVariableIdResetResponse)
 
 export const reset = {
-  put,
+  put: put2,
 }
 
 /**
@@ -578,16 +721,10 @@ export const delete2 = oc
 
 /**
  * Get a specific draft workflow variable (snippet scope)
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
-export const get11 = oc
+export const get13 = oc
   .route({
-    deprecated: true,
-    description:
-      'Get a specific draft workflow variable (snippet scope)\n\nGenerated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
+    description: 'Get a specific draft workflow variable (snippet scope)',
     inputStructure: 'detailed',
     method: 'GET',
     operationId: 'getSnippetsBySnippetIdWorkflowsDraftVariablesByVariableId',
@@ -599,16 +736,10 @@ export const get11 = oc
 
 /**
  * Update a draft workflow variable (snippet scope)
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
 export const patch = oc
   .route({
-    deprecated: true,
-    description:
-      'Update a draft workflow variable (snippet scope)\n\nGenerated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
+    description: 'Update a draft workflow variable (snippet scope)',
     inputStructure: 'detailed',
     method: 'PATCH',
     operationId: 'patchSnippetsBySnippetIdWorkflowsDraftVariablesByVariableId',
@@ -625,7 +756,7 @@ export const patch = oc
 
 export const byVariableId = {
   delete: delete2,
-  get: get11,
+  get: get13,
   patch,
   reset,
 }
@@ -648,16 +779,10 @@ export const delete3 = oc
 
 /**
  * List draft workflow variables without values (paginated, snippet scope)
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
-export const get12 = oc
+export const get14 = oc
   .route({
-    deprecated: true,
-    description:
-      'List draft workflow variables without values (paginated, snippet scope)\n\nGenerated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
+    description: 'List draft workflow variables without values (paginated, snippet scope)',
     inputStructure: 'detailed',
     method: 'GET',
     operationId: 'getSnippetsBySnippetIdWorkflowsDraftVariables',
@@ -671,25 +796,19 @@ export const get12 = oc
     }),
   )
   .output(zGetSnippetsBySnippetIdWorkflowsDraftVariablesResponse)
+  .errors({ draft_workflow_not_exist: { status: 404, data: zDraftWorkflowNotExistError } })
 
 export const variables2 = {
   delete: delete3,
-  get: get12,
+  get: get14,
   byVariableId,
 }
 
 /**
  * Get draft workflow for snippet
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
-export const get13 = oc
+export const get15 = oc
   .route({
-    deprecated: true,
-    description:
-      'Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
     inputStructure: 'detailed',
     method: 'GET',
     operationId: 'getSnippetsBySnippetIdWorkflowsDraft',
@@ -699,19 +818,13 @@ export const get13 = oc
   })
   .input(z.object({ params: zGetSnippetsBySnippetIdWorkflowsDraftPath }))
   .output(zGetSnippetsBySnippetIdWorkflowsDraftResponse)
+  .errors({ draft_workflow_not_exist: { status: 404, data: zDraftWorkflowNotExistError } })
 
 /**
  * Sync draft workflow for snippet
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
-export const post6 = oc
+export const post10 = oc
   .route({
-    deprecated: true,
-    description:
-      'Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
     inputStructure: 'detailed',
     method: 'POST',
     operationId: 'postSnippetsBySnippetIdWorkflowsDraft',
@@ -726,10 +839,11 @@ export const post6 = oc
     }),
   )
   .output(zPostSnippetsBySnippetIdWorkflowsDraftResponse)
+  .errors({ draft_workflow_not_sync: { status: 409, data: zDraftWorkflowNotSyncError } })
 
 export const draft = {
-  get: get13,
-  post: post6,
+  get: get15,
+  post: post10,
   config,
   conversationVariables,
   environmentVariables,
@@ -743,16 +857,9 @@ export const draft = {
 
 /**
  * Get published workflow for snippet
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
-export const get14 = oc
+export const get16 = oc
   .route({
-    deprecated: true,
-    description:
-      'Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
     inputStructure: 'detailed',
     method: 'GET',
     operationId: 'getSnippetsBySnippetIdWorkflowsPublish',
@@ -765,16 +872,9 @@ export const get14 = oc
 
 /**
  * Publish snippet workflow
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
-export const post7 = oc
+export const post11 = oc
   .route({
-    deprecated: true,
-    description:
-      'Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
     inputStructure: 'detailed',
     method: 'POST',
     operationId: 'postSnippetsBySnippetIdWorkflowsPublish',
@@ -791,24 +891,18 @@ export const post7 = oc
   .output(zPostSnippetsBySnippetIdWorkflowsPublishResponse)
 
 export const publish = {
-  get: get14,
-  post: post7,
+  get: get16,
+  post: post11,
 }
 
 /**
  * Restore a published snippet workflow version into the draft workflow
  *
  * Restore a published snippet workflow version into the draft workflow
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
-export const post8 = oc
+export const post12 = oc
   .route({
-    deprecated: true,
-    description:
-      'Restore a published snippet workflow version into the draft workflow\n\nGenerated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
+    description: 'Restore a published snippet workflow version into the draft workflow',
     inputStructure: 'detailed',
     method: 'POST',
     operationId: 'postSnippetsBySnippetIdWorkflowsByWorkflowIdRestore',
@@ -820,10 +914,54 @@ export const post8 = oc
   .output(zPostSnippetsBySnippetIdWorkflowsByWorkflowIdRestoreResponse)
 
 export const restore = {
-  post: post8,
+  post: post12,
 }
 
+/**
+ * Delete a published snippet workflow version
+ *
+ * Delete a published snippet workflow version
+ */
+export const delete4 = oc
+  .route({
+    description: 'Delete a published snippet workflow version',
+    inputStructure: 'detailed',
+    method: 'DELETE',
+    operationId: 'deleteSnippetsBySnippetIdWorkflowsByWorkflowId',
+    path: '/snippets/{snippet_id}/workflows/{workflow_id}',
+    successStatus: 204,
+    summary: 'Delete a published snippet workflow version',
+    tags: ['console'],
+  })
+  .input(z.object({ params: zDeleteSnippetsBySnippetIdWorkflowsByWorkflowIdPath }))
+  .output(zDeleteSnippetsBySnippetIdWorkflowsByWorkflowIdResponse)
+
+/**
+ * Update a published snippet workflow version's display metadata
+ *
+ * Update published snippet workflow attributes
+ */
+export const patch2 = oc
+  .route({
+    description: 'Update published snippet workflow attributes',
+    inputStructure: 'detailed',
+    method: 'PATCH',
+    operationId: 'patchSnippetsBySnippetIdWorkflowsByWorkflowId',
+    path: '/snippets/{snippet_id}/workflows/{workflow_id}',
+    summary: "Update a published snippet workflow version's display metadata",
+    tags: ['console'],
+  })
+  .input(
+    z.object({
+      body: zPatchSnippetsBySnippetIdWorkflowsByWorkflowIdBody,
+      params: zPatchSnippetsBySnippetIdWorkflowsByWorkflowIdPath,
+    }),
+  )
+  .output(zPatchSnippetsBySnippetIdWorkflowsByWorkflowIdResponse)
+
 export const byWorkflowId = {
+  delete: delete4,
+  patch: patch2,
   restore,
 }
 
@@ -831,16 +969,10 @@ export const byWorkflowId = {
  * Get all published workflow versions for snippet
  *
  * Get all published workflows for a snippet
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
  */
-export const get15 = oc
+export const get17 = oc
   .route({
-    deprecated: true,
-    description:
-      'Get all published workflows for a snippet\n\nGenerated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
+    description: 'Get all published workflows for a snippet',
     inputStructure: 'detailed',
     method: 'GET',
     operationId: 'getSnippetsBySnippetIdWorkflows',
@@ -857,7 +989,7 @@ export const get15 = oc
   .output(zGetSnippetsBySnippetIdWorkflowsResponse)
 
 export const workflows = {
-  get: get15,
+  get: get17,
   defaultWorkflowBlockConfigs,
   draft,
   publish,

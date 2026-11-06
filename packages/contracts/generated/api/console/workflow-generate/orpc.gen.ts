@@ -2,21 +2,65 @@
 
 import { oc } from '@orpc/contract'
 import * as z from 'zod'
-
-import { zPostWorkflowGenerateBody, zPostWorkflowGenerateResponse } from './zod.gen'
+import {
+  zCompletionRequestError,
+  zModelCurrentlyNotSupportError,
+  zProviderNotInitializeError,
+  zProviderQuotaExceededError,
+} from './zod.gen.ts'
+import {
+  zPostWorkflowGenerateBody,
+  zPostWorkflowGenerateResponse,
+  zPostWorkflowGenerateStreamBody,
+  zPostWorkflowGenerateStreamResponse,
+  zPostWorkflowGenerateSuggestionsBody,
+  zPostWorkflowGenerateSuggestionsResponse,
+} from './zod.gen.ts'
 
 /**
- * Generate a Dify workflow graph from natural language
- *
- * Generated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.
- *
- * @deprecated
+ * Stream a Dify workflow graph (plan then result) via SSE
  */
 export const post = oc
   .route({
-    deprecated: true,
-    description:
-      'Generate a Dify workflow graph from natural language\n\nGenerated contract types may be inaccurate because backend OpenAPI annotations are incomplete. Do not migrate callers until the generated contract is accurate.',
+    description: 'Stream a Dify workflow graph (plan then result) via SSE',
+    inputStructure: 'detailed',
+    method: 'POST',
+    operationId: 'postWorkflowGenerateStream',
+    path: '/workflow-generate/stream',
+    tags: ['console'],
+  })
+  .input(z.object({ body: zPostWorkflowGenerateStreamBody }))
+  .output(zPostWorkflowGenerateStreamResponse)
+
+export const stream = {
+  post,
+}
+
+/**
+ * Suggest example workflow-generator instructions for the tenant
+ */
+export const post2 = oc
+  .route({
+    description: 'Suggest example workflow-generator instructions for the tenant',
+    inputStructure: 'detailed',
+    method: 'POST',
+    operationId: 'postWorkflowGenerateSuggestions',
+    path: '/workflow-generate/suggestions',
+    tags: ['console'],
+  })
+  .input(z.object({ body: zPostWorkflowGenerateSuggestionsBody }))
+  .output(zPostWorkflowGenerateSuggestionsResponse)
+
+export const suggestions = {
+  post: post2,
+}
+
+/**
+ * Generate a Dify workflow graph from natural language
+ */
+export const post3 = oc
+  .route({
+    description: 'Generate a Dify workflow graph from natural language',
     inputStructure: 'detailed',
     method: 'POST',
     operationId: 'postWorkflowGenerate',
@@ -25,9 +69,17 @@ export const post = oc
   })
   .input(z.object({ body: zPostWorkflowGenerateBody }))
   .output(zPostWorkflowGenerateResponse)
+  .errors({
+    completion_request_error: { status: 400, data: zCompletionRequestError },
+    model_currently_not_support: { status: 400, data: zModelCurrentlyNotSupportError },
+    provider_not_initialize: { status: 400, data: zProviderNotInitializeError },
+    provider_quota_exceeded: { status: 400, data: zProviderQuotaExceededError },
+  })
 
 export const workflowGenerate = {
-  post,
+  post: post3,
+  stream,
+  suggestions,
 }
 
 export const contract = {

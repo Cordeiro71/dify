@@ -25,6 +25,8 @@ HUMAN_INPUT_FORM_INPUT_EXAMPLE = {
 
 
 class HumanInputFormSubmitPayload(BaseModel):
+    """Legacy Human Input v1 submit payload shared by existing runtime surfaces."""
+
     inputs: dict[str, JsonValue] = Field(
         description=(
             "Submitted human input values keyed by output variable name. "
@@ -35,17 +37,23 @@ class HumanInputFormSubmitPayload(BaseModel):
         ),
         examples=[HUMAN_INPUT_FORM_INPUT_EXAMPLE],
     )
-    action: str
+    action: str = Field(
+        description=(
+            "ID of the action button the recipient selected. Must match one of the `id` values from the form's "
+            "`user_actions` list."
+        )
+    )
 
 
 def stringify_form_default_values(values: dict[str, object]) -> dict[str, str]:
     """Serialize default values into strings expected by human-input form clients."""
     result: dict[str, str] = {}
     for key, value in values.items():
-        if value is None:
-            result[key] = ""
-        elif isinstance(value, (dict, list)):
-            result[key] = json.dumps(value, ensure_ascii=False)
-        else:
-            result[key] = str(value)
+        match value:
+            case None:
+                result[key] = ""
+            case dict() | list():
+                result[key] = json.dumps(value, ensure_ascii=False)
+            case _:
+                result[key] = str(value)
     return result

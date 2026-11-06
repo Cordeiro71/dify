@@ -2,10 +2,11 @@ import json
 from collections.abc import Generator
 from dataclasses import dataclass
 from os import getenv
-from typing import Any, Union, override
+from typing import Any, override
 from urllib.parse import urlencode
 
 import httpx
+from sqlalchemy.orm import Session
 
 from core.helper import ssrf_proxy
 from core.tools.__base.tool import Tool
@@ -25,7 +26,7 @@ API_TOOL_DEFAULT_TIMEOUT = (
 class ParsedResponse:
     """Represents a parsed HTTP response with type information"""
 
-    content: Union[str, dict]
+    content: str | dict
     is_json: bool
 
     def to_string(self) -> str:
@@ -102,16 +103,17 @@ class ApiTool(Tool):
             elif not isinstance(credentials["api_key_value"], str):
                 raise ToolProviderCredentialValidationError("api_key_value must be a string")
 
+            api_key_value = credentials["api_key_value"]
             if "api_key_header_prefix" in credentials:
                 api_key_header_prefix = credentials["api_key_header_prefix"]
-                if api_key_header_prefix == "basic" and credentials["api_key_value"]:
-                    credentials["api_key_value"] = f"Basic {credentials['api_key_value']}"
-                elif api_key_header_prefix == "bearer" and credentials["api_key_value"]:
-                    credentials["api_key_value"] = f"Bearer {credentials['api_key_value']}"
+                if api_key_header_prefix == "basic" and api_key_value:
+                    api_key_value = f"Basic {api_key_value}"
+                elif api_key_header_prefix == "bearer" and api_key_value:
+                    api_key_value = f"Bearer {api_key_value}"
                 elif api_key_header_prefix == "custom":
                     pass
 
-            headers[api_key_header] = credentials["api_key_value"]
+            headers[api_key_header] = api_key_value
 
         elif credentials["auth_type"] == "api_key_query":
             # For query parameter authentication, we don't add anything to headers
@@ -277,7 +279,7 @@ class ApiTool(Tool):
         if files:
             headers.pop("Content-Type", None)
 
-        _METHOD_MAP = {
+        _method_map = {
             "get": ssrf_proxy.get,
             "head": ssrf_proxy.head,
             "post": ssrf_proxy.post,
@@ -286,9 +288,9 @@ class ApiTool(Tool):
             "patch": ssrf_proxy.patch,
         }
         method_lc = method.lower()
-        if method_lc not in _METHOD_MAP:
+        if method_lc not in _method_map:
             raise ValueError(f"Invalid http method {method}")
-        response: httpx.Response = _METHOD_MAP[
+        response: httpx.Response = _method_map[
             method_lc
         ](  # https://discuss.python.org/t/type-inference-for-function-return-types/42926
             url,
@@ -306,6 +308,12 @@ class ApiTool(Tool):
     def _convert_body_property_any_of(
         self, property: dict[str, Any], value: Any, any_of: list[dict[str, Any]], max_recursive=10
     ):
+        """Convert a body value using the first supported anyOf option, without side effects.
+
+        Number options preserve fractional exponent values. Conversions raising ValueError
+        try the remaining options; exhaustion returns the input unchanged. A depleted
+        recursion budget raises before conversion.
+        """
         if max_recursive <= 0:
             raise Exception("Max recursion depth reached")
         for option in any_of or []:
@@ -315,7 +323,7 @@ class ApiTool(Tool):
                     if option["type"] == "integer" or option["type"] == "int":
                         return int(value)
                     elif option["type"] == "number":
-                        if "." in str(value):
+                        if "." in str(value) or "e" in str(value).lower():
                             return float(value)
                         else:
                             return int(value)
@@ -341,13 +349,19 @@ class ApiTool(Tool):
         return value  # or raise ValueError(f"Cannot convert value '{value}' to any specified type in anyOf")
 
     def _convert_body_property_type(self, property: dict[str, Any], value: Any):
+        """Convert a body value according to its OpenAPI property, without side effects.
+
+        Number properties accept decimal and exponent representations while integer
+        representations keep their exact value. Conversions raising ValueError return
+        the original input; anyOf properties retain their existing option-order behavior.
+        """
         try:
             if "type" in property:
                 if property["type"] == "integer" or property["type"] == "int":
                     return int(value)
                 elif property["type"] == "number":
-                    # check if it is a float
-                    if "." in str(value):
+                    # Decimal points and exponents both denote floating-point representations.
+                    if "." in str(value) or "e" in str(value).lower():
                         return float(value)
                     else:
                         return int(value)
@@ -359,15 +373,16 @@ class ApiTool(Tool):
                     if value is None:
                         return None
                 elif property["type"] == "object" or property["type"] == "array":
-                    if isinstance(value, str):
-                        try:
-                            return json.loads(value)
-                        except ValueError:
+                    match value:
+                        case str():
+                            try:
+                                return json.loads(value)
+                            except ValueError:
+                                return value
+                        case dict():
                             return value
-                    elif isinstance(value, dict):
-                        return value
-                    else:
-                        return value
+                        case _:
+                            return value
                 else:
                     raise ValueError(f"Invalid type {property['type']} for property {property}")
             elif "anyOf" in property and isinstance(property["anyOf"], list):
@@ -378,12 +393,13 @@ class ApiTool(Tool):
     @override
     def _invoke(
         self,
+        session: Session,
         user_id: str,
         tool_parameters: dict[str, Any],
         conversation_id: str | None = None,
         app_id: str | None = None,
         message_id: str | None = None,
-    ) -> Generator[ToolInvokeMessage, None, None]:
+    ) -> Generator[ToolInvokeMessage]:
         """
         invoke http request
         """

@@ -1,16 +1,15 @@
-from typing import override
-
 """
 Queue dispatcher system for async workflow execution.
 
-Implements an ABC-based pattern for handling different subscription tiers
+Implements a Protocol-based pattern for handling different subscription tiers
 with appropriate queue routing and priority assignment.
 """
 
-from abc import ABC, abstractmethod
 from enum import StrEnum
+from typing import Protocol, override
 
 from configs import dify_config
+from enums import DeploymentEdition
 from services.billing_service import BillingService
 
 
@@ -22,18 +21,16 @@ class QueuePriority(StrEnum):
     SANDBOX = "workflow_sandbox"  # Free tier
 
 
-class BaseQueueDispatcher(ABC):
-    """Abstract base class for queue dispatchers"""
+class BaseQueueDispatcher(Protocol):
+    """Protocol for queue dispatchers"""
 
-    @abstractmethod
     def get_queue_name(self) -> str:
         """Get the queue name for this dispatcher"""
-        pass
+        ...
 
-    @abstractmethod
     def get_priority(self) -> int:
         """Get task priority level"""
-        pass
+        ...
 
 
 class ProfessionalQueueDispatcher(BaseQueueDispatcher):
@@ -95,15 +92,15 @@ class QueueDispatcherManager:
         Returns:
             Appropriate queue dispatcher instance
         """
-        if dify_config.BILLING_ENABLED:
+        if dify_config.DEPLOYMENT_EDITION == DeploymentEdition.CLOUD:
             try:
                 billing_info = BillingService.get_info(tenant_id)
-                plan = billing_info.get("subscription", {}).get("plan", "sandbox")
+                plan = billing_info.subscription.plan
             except Exception:
                 # If billing service fails, default to sandbox
                 plan = "sandbox"
         else:
-            # If billing is disabled, use team tier as default
+            # Self-hosted editions use the team queue by default.
             plan = "team"
 
         dispatcher_class = cls.PLAN_DISPATCHER_MAP.get(

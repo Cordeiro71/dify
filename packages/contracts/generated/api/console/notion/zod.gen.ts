@@ -10,6 +10,34 @@ export const zTextContentResponse = z.object({
 })
 
 /**
+ * ErrorResponse
+ *
+ * Documented non-2xx body emitted by ``register_external_error_handlers``.
+ *
+ * ``params`` and ``details`` appear only on the errors that set them. The schema
+ * stays open because ``HTTPException.data`` may carry extra keys.
+ */
+export const zErrorResponse = z.object({
+  code: z.string(),
+  details: z.record(z.string(), z.unknown()).optional(),
+  message: z.string(),
+  params: z.string().optional(),
+  status: z.int(),
+})
+
+/**
+ * DatasetAccessDeniedError
+ *
+ * Dataset access denied.
+ */
+export const zDatasetAccessDeniedError = zErrorResponse.and(
+  z.object({
+    code: z.literal('dataset_access_denied'),
+    status: z.literal(403),
+  }),
+)
+
+/**
  * DataSourceIntegrateIconResponse
  */
 export const zDataSourceIntegrateIconResponse = z.object({
@@ -19,15 +47,20 @@ export const zDataSourceIntegrateIconResponse = z.object({
 })
 
 /**
+ * NotionPageType
+ */
+export const zNotionPageType = z.enum(['database', 'page'])
+
+/**
  * NotionIntegratePageResponse
  */
 export const zNotionIntegratePageResponse = z.object({
   is_bound: z.boolean(),
-  page_icon: zDataSourceIntegrateIconResponse,
+  page_icon: zDataSourceIntegrateIconResponse.nullable(),
   page_id: z.string(),
   page_name: z.string(),
   parent_id: z.string().nullable(),
-  type: z.string(),
+  type: zNotionPageType,
 })
 
 /**
@@ -48,7 +81,7 @@ export const zNotionIntegrateInfoListResponse = z.object({
 })
 
 export const zGetNotionPagesByPageIdByPageTypePreviewPath = z.object({
-  page_id: z.string(),
+  page_id: z.uuid(),
   page_type: z.string(),
 })
 

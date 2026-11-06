@@ -4,8 +4,11 @@ This guide shows how to deploy Dify on a [Dokploy](https://dokploy.com) host
 using the dedicated compose file in this repository.
 
 The setup ships PostgreSQL, Redis, Weaviate, Sandbox, SSRF proxy, Plugin
-Daemon and an internal Nginx — all wired up so that Dokploy's Traefik can
+Daemon, the Agent v2 runtime (agent backend, local sandbox and its own SSRF
+proxy) and an internal Nginx — all wired up so that Dokploy's Traefik can
 front the stack on a domain you choose.
+
+Current versions: Dify 1.19.0, plugin daemon 0.6.14, Weaviate 1.39.13.
 
 ## Files
 
@@ -139,11 +142,46 @@ The default file uses Weaviate. To use Qdrant/Milvus/pgvector instead:
 * `NGINX_CLIENT_MAX_BODY_SIZE` defaults to `100M`. Raise it if you allow
   larger document uploads.
 * Run Dokploy's Volume Backup on `db_postgres_data`, `app_storage`,
-  `plugin_daemon_storage`, and `weaviate_data`.
+  `plugin_daemon_storage`, `weaviate_data`, and
+  `agent_local_sandbox_workspace`.
 
 ## Updating Dify
 
 Pin the image tags inside `docker-compose.dokploy.yaml`
-(`dify-api`, `dify-web`, `dify-sandbox`, `dify-plugin-daemon`) and
-redeploy. Dokploy will pull the new tags and rebuild only the affected
-containers; named volumes are preserved.
+(`dify-api`, `dify-web`, `dify-agent-backend`, `dify-agent-local-sandbox`,
+`dify-sandbox`, `dify-plugin-daemon`) and redeploy. Dokploy will pull the
+new tags and rebuild only the affected containers; named volumes are
+preserved. Database migrations run automatically on `api` startup.
+
+Before each upgrade, compare against the upstream compose
+(`docker/docker-compose.yaml`). It is the source of truth for new
+services, mounted templates and required variables. The Dokploy file
+mounts nginx and squid templates from the repo, so a template change
+upstream can require a matching mount or env var here.
+
+### Upgrading from 1.14.x to 1.19.0
+
+1. **Back up first.** Run a Volume Backup of `db_postgres_data` and
+   `weaviate_data`. Weaviate jumps from 1.27 to 1.39 and the API runs
+   database migrations on first start.
+2. **Add the new secrets** in the Environment tab (see
+   `.env.dokploy.example`, section "Agent v2"):
+   `DIFY_AGENT_LOCAL_SANDBOX_AUTH_TOKEN` and `DIFY_AGENT_API_TOKEN`.
+   `DIFY_AGENT_SERVER_SECRET_KEY` is optional but has a strict format:
+   unpadded base64url that decodes to 32 bytes. Generate it with
+   `openssl rand 32 | base64 | tr '+/' '-_' | tr -d '=\n'`.
+3. **Redeploy.** Three new services start: `agent_backend`,
+   `local_sandbox` and `agent_ssrf_proxy`.
+
+What changed in the stack:
+
+* `ssrf_proxy` now also mounts `squid-common.conf.template`. Without it the
+  new entrypoint fails and Squid does not start.
+* New optional `SSRF_PROXY_ALLOW_PRIVATE_IPS` /
+  `SSRF_PROXY_ALLOW_PRIVATE_DOMAINS` let HTTP nodes, tools and plugins reach
+  private addresses.
+* `RESPECT_XFORWARD_HEADERS_ENABLED=true` matches the new nginx templates,
+  which forward the external host and port to the API.
+* The Celery broker URL now follows `REDIS_PASSWORD`. Earlier versions of
+  this file kept the default password in it, which broke the worker when
+  the Redis password was changed.
